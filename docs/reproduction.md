@@ -316,6 +316,12 @@ runs/irb120/results/suite_summary_medium_optimized.csv
 runs/irb120/results/irb120_experiment_report_free.md
 runs/irb120/results/irb120_experiment_report_medium.md
 runs/irb120/figures/irb120_medium_optimized_metrics.png
+runs/irb120/figures/irb120_fixed_reach_projection.png
+runs/irb120/figures/irb120_random_reach_projection.png
+runs/irb120/figures/irb120_fixed_reach_render.png
+runs/irb120/figures/irb120_random_reach_render.png
+runs/irb120/figures/irb120_reach_projection_panel.png
+runs/irb120/figures/irb120_reach_render_panel.png
 ```
 
 重新训练 IRB120 对比模型：
@@ -366,6 +372,22 @@ python -m rl_reach.plotting \
   --config configs/experiment_irb120.yaml \
   --summary-csv runs/irb120/results/suite_summary_medium_optimized.csv \
   --name irb120_medium_optimized
+
+python -m rl_reach.plotting \
+  --config configs/experiment_irb120.yaml \
+  --algo TD3_HER_CURRICULUM \
+  --model runs/irb120/models/TD3_HER_CURRICULUM_fixed.zip \
+  --fixed-goal \
+  --name irb120_fixed_reach \
+  --render-snapshot
+
+python -m rl_reach.plotting \
+  --config configs/experiment_irb120.yaml \
+  --algo TD3_HER_CURRICULUM \
+  --model runs/irb120/models/TD3_HER_CURRICULUM_random.zip \
+  --random-goal \
+  --name irb120_random_reach \
+  --render-snapshot
 ```
 
 IRB120 当前复现结论：

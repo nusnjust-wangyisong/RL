@@ -265,6 +265,17 @@ runs/results/ablation_report.md
 
 这种组织方式与中期答辩保持一致，但最终报告的重点更明确：不是只说明算法能到达目标，而是说明完整方法在 5 mm 高精度和受迫振动稳定性上同时领先。
 
+本轮进一步补充了 IRB120 可视化结果图，可直接作为固定目标/随机目标展示材料：
+
+```text
+runs/irb120/figures/irb120_fixed_reach_projection.png
+runs/irb120/figures/irb120_random_reach_projection.png
+runs/irb120/figures/irb120_fixed_reach_render.png
+runs/irb120/figures/irb120_random_reach_render.png
+runs/irb120/figures/irb120_reach_projection_panel.png
+runs/irb120/figures/irb120_reach_render_panel.png
+```
+
 ## 14. IRB120 双环境扩展结果
 
 为验证方法不是只适用于 Franka Panda，本项目进一步加入 ABB IRB120 六自由度机械臂仿真环境。Panda 为 7 自由度，IRB120 为 6 自由度，因此当前工程没有复用 Panda 的动作空间假设，而是新增原生 PyBullet IRB120 GoalEnv：动作空间为 6 维关节增量，观测包含关节位置、关节速度、末端位置、末端速度、目标相对向量、上一时刻动作和 episode 进度。
