@@ -1,0 +1,84 @@
+seed: 43
+device: auto
+
+env:
+  id: PandaReach-v3
+  robot: franka_panda
+  control_type: ee
+  render_mode: null
+  max_episode_steps: 80
+  fixed_goal: false
+  fixed_goal_position: [0.12, 0.0, 0.25]
+  random_goal_range:
+    x: [0.05, 0.20]
+    y: [-0.15, 0.15]
+    z: [0.18, 0.32]
+  target_threshold_m: 0.005
+  terminate_on_success: true
+  thresholds_m: [0.050, 0.030, 0.020, 0.010, 0.005]
+
+reward:
+  reach_weight: 1.0
+  success_bonus: 1.0
+  action_smooth_weight: 0.12
+  joint_acc_weight: 0.000005
+  ee_jerk_weight: 0.0000002
+  vibration_weight: 0.002
+  precision_radius_m: 0.020
+  dense: true
+
+disturbance:
+  enabled: true
+  activation_radius_m: 0.020
+  direction: [0.0, 0.0, 1.0]
+  base_force_n: 0.0
+  amplitude_n: 5.0
+  frequency_hz: 20.0
+  noise_std_n: 0.5
+  start_after_steps: 5
+  strengths:
+    light: {amplitude_n: 2.0, noise_std_n: 0.2}
+    medium: {amplitude_n: 5.0, noise_std_n: 0.5}
+    strong: {amplitude_n: 10.0, noise_std_n: 1.0}
+
+curriculum:
+  enabled: true
+  stages:
+    - {steps: 10000, threshold_m: 0.050, goal_range_scale: 0.35}
+    - {steps: 10000, threshold_m: 0.030, goal_range_scale: 0.55}
+    - {steps: 15000, threshold_m: 0.020, goal_range_scale: 0.75}
+    - {steps: 20000, threshold_m: 0.010, goal_range_scale: 0.90}
+    - {steps: 45000, threshold_m: 0.005, goal_range_scale: 1.00}
+
+train:
+  total_timesteps: 100000
+  learning_rate: 0.0003
+  batch_size: 256
+  buffer_size: 1000000
+  gamma: 0.95
+  tau: 0.05
+  train_freq: 1
+  gradient_steps: 1
+  learning_starts: 5000
+  her_n_sampled_goal: 4
+  eval_freq: 10000
+  eval_episodes: 20
+  verbose: 0
+
+eval:
+  stable_filter_algorithms: []
+  action_filter_beta: 0.25
+  precision_servo_algorithms: []
+  precision_servo_gain: 8.0
+  precision_servo_beta: 0.30
+  precision_servo_max_action: 0.18
+
+experiments:
+  algorithms:
+    - TD3_HER_CURRICULUM
+
+paths:
+  run_dir: runs
+  model_dir: models
+  result_dir: results
+  figure_dir: figures
