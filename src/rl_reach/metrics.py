@@ -131,6 +131,12 @@ def summarize_episode(
     joint_acc = finite_difference(joint_vel, dt) if joint_vel.size else np.empty((0,), dtype=float)
     final_error = float(distances[-1]) if distances.size else float("nan")
     min_error = float(np.min(distances)) if distances.size else float("nan")
+    hold_ee_acc = _tail_window(ee_acc, hold_window)
+    hold_ee_jerk = _tail_window(ee_jerk, hold_window)
+    hold_joint_acc = _tail_window(joint_acc, hold_window)
+    hold_actions = _tail_window(actions, hold_window)
+    miss_penalty = max(final_error - hold_threshold_m, 0.0) if np.isfinite(final_error) else 1.0
+    precision_penalty = 100.0 * miss_penalty
 
     summary: dict[str, Any] = {
         "final_error_m": final_error,
@@ -145,12 +151,35 @@ def summarize_episode(
         "action_delta_mean": action_delta_mean(actions),
         "vibration_index": vibration_index(ee_acc),
         "hold_5mm": hold_rate(distances, hold_threshold_m, hold_window),
+        "hold_ee_acc_rms": rms(np.linalg.norm(np.atleast_2d(hold_ee_acc), axis=1)) if hold_ee_acc.size else 0.0,
+        "hold_ee_acc_p2p": peak_to_peak(hold_ee_acc),
+        "hold_ee_jerk_rms": rms(np.linalg.norm(np.atleast_2d(hold_ee_jerk), axis=1)) if hold_ee_jerk.size else 0.0,
+        "hold_joint_acc_rms": rms(hold_joint_acc),
+        "hold_action_delta_mean": action_delta_mean(hold_actions),
+        "hold_vibration_index": vibration_index(hold_ee_acc),
     }
+    summary.update(
+        {
+            "qualified_ee_acc_rms": summary["hold_ee_acc_rms"] + precision_penalty,
+            "qualified_ee_acc_p2p": summary["hold_ee_acc_p2p"] + precision_penalty,
+            "qualified_ee_jerk_rms": summary["hold_ee_jerk_rms"] + precision_penalty,
+            "qualified_joint_acc_rms": summary["hold_joint_acc_rms"] + precision_penalty,
+            "qualified_action_delta_mean": summary["hold_action_delta_mean"] + precision_penalty,
+            "qualified_vibration_index": summary["hold_vibration_index"] + precision_penalty,
+        }
+    )
 
     for threshold in thresholds_m:
         key = f"success_{int(round(threshold * 1000))}mm"
         summary[key] = float(final_error <= threshold) if np.isfinite(final_error) else 0.0
     return summary
+
+
+def _tail_window(values: np.ndarray, window: int) -> np.ndarray:
+    values = np.asarray(values, dtype=float)
+    if values.size == 0:
+        return values
+    return values[-max(int(window), 1) :]
 
 
 def hold_rate(distances: np.ndarray, threshold: float, window: int) -> float:

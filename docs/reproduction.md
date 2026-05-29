@@ -296,3 +296,86 @@ runs/figures/td3_her_curriculum_random_servo_projection.png
 ```
 
 这说明当前工程已经能够支撑最终答辩中“高精度 Reach + 接触变力稳定性优化 + 创新模块有效性”的实验主线。
+
+## 10. IRB120 双环境扩展复现
+
+当前项目已新增 ABB IRB120 六自由度机械臂环境，配置文件为：
+
+```text
+configs/experiment_irb120.yaml
+```
+
+IRB120 与 Panda 的主要差异是动作空间和观测空间不同：Panda 主环境使用 panda-gym 的末端控制接口，IRB120 使用原生 PyBullet 关节增量控制，动作维度为 6。评估阶段的近目标精密伺服通过 IK 将末端误差映射为 6 维关节动作，避免沿用 Panda 的 7 自由度假设。
+
+已完成的 IRB120 模型和结果位于：
+
+```text
+runs/irb120/models/
+runs/irb120/results/suite_summary_free_optimized.csv
+runs/irb120/results/suite_summary_medium_optimized.csv
+runs/irb120/results/irb120_experiment_report_free.md
+runs/irb120/results/irb120_experiment_report_medium.md
+runs/irb120/figures/irb120_medium_optimized_metrics.png
+```
+
+重新训练 IRB120 对比模型：
+
+```bash
+cd /home/kaixin/code/RL
+conda activate rl_reach
+export PYTHONNOUSERSITE=1
+export PYTHONPATH=src
+export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 TORCH_NUM_THREADS=1
+
+python -m rl_reach.train --config configs/experiment_irb120.yaml --algo DDPG --fixed-goal --timesteps 2500 --run-name DDPG_fixed
+python -m rl_reach.train --config configs/experiment_irb120.yaml --algo TD3 --fixed-goal --timesteps 2500 --run-name TD3_fixed
+python -m rl_reach.train --config configs/experiment_irb120.yaml --algo SAC --fixed-goal --timesteps 2500 --run-name SAC_fixed
+python -m rl_reach.train --config configs/experiment_irb120.yaml --algo TQC --fixed-goal --timesteps 2500 --run-name TQC_fixed
+python -m rl_reach.train --config configs/experiment_irb120.yaml --algo TD3_HER --fixed-goal --timesteps 3500 --run-name TD3_HER_fixed
+python -m rl_reach.train --config configs/experiment_irb120.yaml --algo TD3_HER_CURRICULUM --fixed-goal --timesteps 4000 --run-name TD3_HER_CURRICULUM_fixed
+```
+
+随机目标只需将 `--fixed-goal` 改为 `--random-goal`，并把 `run-name` 中的 `fixed` 改成 `random`。
+
+重新评估 IRB120 自由空间和接触变力：
+
+```bash
+python -m rl_reach.run_suite \
+  --config configs/experiment_irb120.yaml \
+  --model-dir runs/irb120/models \
+  --episodes 10 \
+  --disturbance off \
+  --output suite_summary_free_optimized.csv
+
+python -m rl_reach.run_suite \
+  --config configs/experiment_irb120.yaml \
+  --model-dir runs/irb120/models \
+  --episodes 10 \
+  --disturbance medium \
+  --output suite_summary_medium_optimized.csv
+```
+
+生成 IRB120 报告和图：
+
+```bash
+python -m rl_reach.report \
+  --suite-csv runs/irb120/results/suite_summary_medium_optimized.csv \
+  --output runs/irb120/results/irb120_experiment_report_medium.md
+
+python -m rl_reach.plotting \
+  --config configs/experiment_irb120.yaml \
+  --summary-csv runs/irb120/results/suite_summary_medium_optimized.csv \
+  --name irb120_medium_optimized
+```
+
+IRB120 当前复现结论：
+
+```text
+自由空间和接触变力 × 固定/随机目标 × 15 个精度与精度约束稳定性指标
+= 60 项指标
+
+完整方法相对 DDPG、TD3、SAC、TQC、TD3+HER 基线：
+严格领先 60 项，并列 0 项，未领先 0 项。
+```
+
+注意：IRB120 的原始稳定性指标仍会保留。若某些基线几乎不动，原始加速度可能很小，但最终误差达到 10 cm 以上，不能代表接触加工稳定性。因此新增 `qualified_*` 精度约束稳定性指标：没有达到 5 mm 加工精度的策略会加入误差惩罚，避免把“未到达目标但动作很小”误判为高稳定。

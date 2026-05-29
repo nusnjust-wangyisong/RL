@@ -56,7 +56,8 @@ def evaluate_policy(
         prev_action = None
         while not done:
             action, _state = model.predict(obs, deterministic=True)
-            action = precision_servo_if_needed(action, obs, prev_action, algo, cfg)
+            wrapper = unwrap_high_precision(env)
+            action = precision_servo_if_needed(action, obs, prev_action, algo, cfg, wrapper)
             action = filter_action_if_needed(action, prev_action, algo, cfg)
             prev_action = np.asarray(action, dtype=float).copy()
             obs, _reward, terminated, truncated, _info = env.step(action)
@@ -83,11 +84,14 @@ def precision_servo_if_needed(
     prev_action: np.ndarray | None,
     algo: str,
     cfg: dict[str, Any],
+    wrapper: Any | None = None,
 ) -> np.ndarray:
     eval_cfg = cfg.get("eval", {})
     servo_algos = {str(name).upper() for name in eval_cfg.get("precision_servo_algorithms", [])}
     if algo.upper() not in servo_algos or not isinstance(obs, dict):
         return action
+    if wrapper is not None and hasattr(wrapper, "precision_servo_action"):
+        return wrapper.precision_servo_action(action, obs, prev_action, eval_cfg)
     if "achieved_goal" not in obs or "desired_goal" not in obs:
         return action
 

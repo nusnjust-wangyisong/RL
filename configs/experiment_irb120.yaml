@@ -1,0 +1,120 @@
+seed: 42
+device: auto
+
+env:
+  id: IRB120Reach-v0
+  robot: irb120
+  control_type: joint_delta
+  render_mode: null
+  max_episode_steps: 90
+  fixed_goal: false
+  fixed_goal_position: [0.35, 0.0, 0.35]
+  random_goal_range:
+    x: [0.22, 0.44]
+    y: [-0.18, 0.18]
+    z: [0.24, 0.48]
+  target_threshold_m: 0.005
+  terminate_on_success: true
+  thresholds_m: [0.050, 0.030, 0.020, 0.010, 0.005]
+
+irb120:
+  urdf_path: assets/irb120/model.urdf
+  ee_link_id: 6
+  rest_q: [0.0, 0.25, 0.65, 0.0, 0.20, 0.0]
+  physics_dt: 0.004166666666666667
+  control_substeps: 12
+  action_scale_rad: 0.045
+  joint_force: 220.0
+  position_gain: 0.20
+  velocity_gain: 0.75
+  load_plane: true
+  target_visual_radius: 0.006
+
+reward:
+  reach_weight: 1.0
+  success_bonus: 1.0
+  action_smooth_weight: 0.025
+  joint_acc_weight: 0.0000015
+  ee_jerk_weight: 0.000000012
+  vibration_weight: 0.00012
+  precision_radius_m: 0.020
+  dense: true
+
+disturbance:
+  enabled: true
+  activation_radius_m: 0.020
+  direction: [0.0, 0.0, 1.0]
+  base_force_n: 0.0
+  amplitude_n: 4.0
+  frequency_hz: 20.0
+  noise_std_n: 0.4
+  start_after_steps: 5
+  strengths:
+    light: {amplitude_n: 1.5, noise_std_n: 0.15}
+    medium: {amplitude_n: 4.0, noise_std_n: 0.4}
+    strong: {amplitude_n: 8.0, noise_std_n: 0.8}
+
+curriculum:
+  enabled: true
+  stages:
+    - {steps: 8000, threshold_m: 0.050, goal_range_scale: 0.35}
+    - {steps: 8000, threshold_m: 0.030, goal_range_scale: 0.55}
+    - {steps: 12000, threshold_m: 0.020, goal_range_scale: 0.75}
+    - {steps: 16000, threshold_m: 0.010, goal_range_scale: 0.90}
+    - {steps: 36000, threshold_m: 0.005, goal_range_scale: 1.00}
+
+train:
+  total_timesteps: 80000
+  learning_rate: 0.0003
+  batch_size: 256
+  buffer_size: 500000
+  gamma: 0.95
+  tau: 0.05
+  train_freq: 1
+  gradient_steps: 1
+  learning_starts: 4000
+  her_n_sampled_goal: 4
+  eval_freq: 10000
+  eval_episodes: 20
+  verbose: 0
+
+eval:
+  stable_filter_algorithms: [TD3_HER_CURRICULUM]
+  action_filter_beta: 0.25
+  precision_servo_algorithms: [TD3_HER_CURRICULUM]
+  precision_servo_gain: 8.0
+  precision_servo_beta: 0.12
+  precision_servo_max_action: 0.20
+  precision_servo_joint_gain: 1.0
+  precision_servo_ik_iterations: 120
+  precision_servo_ik_residual: 0.00001
+
+experiments:
+  algorithms:
+    - DDPG
+    - TD3
+    - SAC
+    - TQC
+    - SAC_HER
+    - TD3_HER
+    - TQC_HER
+    - TD3_HER_CURRICULUM
+  ablations:
+    - name: reach
+      reward: {action_smooth_weight: 0.0, joint_acc_weight: 0.0, ee_jerk_weight: 0.0, vibration_weight: 0.0}
+      disturbance_enabled: false
+    - name: reach_action_smooth
+      reward: {action_smooth_weight: 0.025, joint_acc_weight: 0.0, ee_jerk_weight: 0.0, vibration_weight: 0.0}
+      disturbance_enabled: false
+    - name: force_no_vibration_reward
+      reward: {action_smooth_weight: 0.025, joint_acc_weight: 0.0, ee_jerk_weight: 0.0, vibration_weight: 0.0}
+      disturbance_enabled: true
+    - name: force_vibration_reward
+      reward: {action_smooth_weight: 0.025, joint_acc_weight: 0.0000015, ee_jerk_weight: 0.000000012, vibration_weight: 0.00012}
+      disturbance_enabled: true
+
+paths:
+  run_dir: runs/irb120
+  model_dir: models
+  result_dir: results
+  figure_dir: figures

@@ -23,6 +23,12 @@ STABILITY_KEYS = [
     "joint_acc_rms_mean",
     "action_delta_mean_mean",
     "vibration_index_mean",
+    "qualified_ee_acc_rms_mean",
+    "qualified_ee_acc_p2p_mean",
+    "qualified_ee_jerk_rms_mean",
+    "qualified_joint_acc_rms_mean",
+    "qualified_action_delta_mean_mean",
+    "qualified_vibration_index_mean",
 ]
 
 
@@ -67,6 +73,9 @@ def render_report(rows: list[dict[str, str]]) -> str:
         "",
         "从稳定性指标看，重点比较 `ee_acc_rms_mean`、`ee_acc_p2p_mean` 和 `ee_jerk_rms_mean`。"
         "在接触变力扰动下这些指标越低，说明末端受迫振动越弱，运动越平稳。",
+        "",
+        "`qualified_*` 指标是在最终 5 mm 精度约束下计算的稳定性评价：若策略没有到达加工精度，"
+        "会加入定位误差惩罚，避免“机械臂几乎不动所以振动小”的无效稳定性结论。",
     ]
     return "\n".join(lines)
 
