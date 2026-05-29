@@ -69,9 +69,9 @@ eval:
   stable_filter_algorithms: [TD3_HER_CURRICULUM]
   action_filter_beta: 0.25
   precision_servo_algorithms: [TD3_HER_CURRICULUM]
-  precision_servo_gain: 10.0
-  precision_servo_beta: 0.35
-  precision_servo_max_action: 0.25
+  precision_servo_gain: 8.0
+  precision_servo_beta: 0.30
+  precision_servo_max_action: 0.18
 
 experiments:
   algorithms:
