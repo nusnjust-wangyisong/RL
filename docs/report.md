@@ -6,7 +6,35 @@
 
 本项目以 Franka Panda 七自由度机械臂为对象，在 PyBullet 仿真环境中构建高精度 Reach 任务。相较中期答辩阶段的 20 mm 精度目标，最终实验将主线目标提升至 5 mm，并增加接触变力扰动，用末端加速度 RMS、峰峰值、jerk 和振动指数评价高稳定性。
 
-## 2. 机械臂与仿真任务
+## 2. 客户需求完成度检查
+
+根据项目需求，本阶段需要完成的不再是中期答辩中的 20 mm Reach 可行性验证，而是完整项目中的 5 mm 高精度 Reach、接触变力稳定性、算法对比、消融实验和最终答辩材料。当前完成度如下。
+
+| 客户需求 | 完成状态 | 证据文件或结果 |
+|:---|:---:|:---|
+| 机械臂选型采用 Franka Panda | 已完成 | `configs/experiment.yaml`，`src/rl_reach/envs.py` |
+| 仿真平台采用 PyBullet / panda-gym | 已完成 | `src/rl_reach/envs.py` |
+| 主线任务为 Reach，高精度目标提升到 5 mm | 已完成 | `target_threshold_m: 0.005`，最终方法 5 mm 成功率为 1.000 |
+| 固定目标 Reach | 已完成 | `suite_summary_free_servo.csv`，`suite_summary_medium_servo.csv` |
+| 随机目标 Reach | 已完成 | `suite_summary_free_servo.csv`，`suite_summary_medium_servo.csv` |
+| 50/30/20/10/5 mm 多阈值成功率 | 已完成 | `experiment_report_free_servo.md`，`experiment_report_medium_servo.md` |
+| DDPG、TD3、SAC、TQC 对比 | 已完成 | `runs/models/`，`suite_summary_*_servo.csv` |
+| SAC+HER、TD3+HER、TQC+HER 对比 | 已完成 | `suite_summary_*_servo.csv` |
+| TD3+HER+课程学习 | 已完成 | `TD3_HER_CURRICULUM_*` 模型与评估结果 |
+| 接触变力扰动模拟加工场景 | 已完成 | `disturbance.medium`，20 mm 内施加周期变力 |
+| 高稳定性评价指标：RMS、峰峰值、jerk、动作变化量 | 已完成 | `ablation_report.md`，`advantage_report.md` |
+| HER / 课程学习 / 动作平滑 / 精密伺服消融 | 已完成 | `runs/results/ablation_report.md` |
+| 34 项综合领先统计 | 已完成 | `runs/results/advantage_report.md` |
+| 固定/随机目标投影图 | 已完成 | `td3_her_curriculum_fixed_servo_projection.png`，`td3_her_curriculum_random_servo_projection.png` |
+| 自由空间/接触变力指标图 | 已完成 | `suite_free_servo_metrics.png`，`suite_medium_servo_metrics.png` |
+| 复现文档 | 已完成 | `docs/reproduction.md` |
+| 最终实验报告 | 已完成 | `docs/report.md` |
+
+需要说明的是，姿态控制当前没有作为主线实验结果展开，而是保留为扩展实验方向；本项目最终答辩主线聚焦“5 mm 高精度位置 Reach + 接触变力稳定性”。IK 引导也不是当前最终结果的核心实现，当前工程采用 panda-gym 末端控制接口，并在近目标阶段加入精密伺服和动作平滑来完成毫米级收敛。
+
+验收结论：客户提出的核心需求已经完成。当前结果可以支撑最终答辩中的主结论，即完整方法在固定目标和随机目标下均稳定达到 5 mm 精度，并在接触变力扰动下显著降低末端加速度 RMS、峰峰值、jerk 和动作变化量。
+
+## 3. 机械臂与仿真任务
 
 机械臂选型为 Franka Emika Panda。该机械臂具有 7 个旋转关节，属于冗余串联机械臂，适合用于高精度末端控制和轨迹稳定性研究。仿真平台采用 PyBullet，任务环境基于 panda-gym PandaReach 改造。
 
@@ -23,7 +51,7 @@
 
 其中 5 mm 是本文最终高精度目标。
 
-## 3. 接触变力稳定性建模
+## 4. 接触变力稳定性建模
 
 为了模拟磨抛、铣削等接触式加工中的受迫振动，本文在末端进入目标点 20 mm 范围后施加周期变力：
 
@@ -44,7 +72,7 @@ F(t) = F0 + A sin(2 pi f t) + epsilon(t)
 
 这些指标越小，表示末端运动越平稳，受迫振动响应越弱。
 
-## 4. 对比算法与完整方法
+## 5. 对比算法与完整方法
 
 实验对比的普通强化学习算法包括：
 
@@ -83,7 +111,7 @@ r_t = -w_d ||p_ee - p_goal|| + w_s I(d < eps)
 
 其中 `V_ee` 为末端振动指数。
 
-## 5. 实验设置
+## 6. 实验设置
 
 实验在固定目标和随机目标两类任务上进行，每类任务分别评估自由空间和接触变力两种工况。
 
@@ -123,9 +151,9 @@ runs/figures/td3_her_curriculum_random_servo_projection.png
 
 ![随机目标末端投影](../runs/figures/td3_her_curriculum_random_servo_projection.png)
 
-## 6. 高精度 Reach 结果
+## 7. 高精度 Reach 结果
 
-### 6.1 自由空间
+### 7.1 自由空间
 
 | 任务 | 方法 | 最终误差 | 5 mm 成功率 | Hold@5mm |
 |:---:|:---:|---:|---:|---:|
@@ -134,7 +162,7 @@ runs/figures/td3_her_curriculum_random_servo_projection.png
 
 自由空间随机目标下，普通强化学习基线中表现最好的最终误差来自 TQC，为 1.299 mm；本文完整方法为 0.207 mm，说明在随机目标泛化任务中，HER、课程学习和近目标精密伺服带来了明显提升。
 
-### 6.2 接触变力
+### 7.2 接触变力
 
 | 任务 | 方法 | 最终误差 | 5 mm 成功率 | Hold@5mm |
 |:---:|:---:|---:|---:|---:|
@@ -143,7 +171,7 @@ runs/figures/td3_her_curriculum_random_servo_projection.png
 
 接触变力随机目标下，普通强化学习基线中表现最好的最终误差同样来自 TQC，为 1.300 mm；本文完整方法为 0.207 mm。说明即使在近目标施加周期变力扰动的情况下，完整方法仍然能够稳定达到 5 mm 精度。
 
-## 7. 稳定性结果
+## 8. 稳定性结果
 
 接触变力随机目标是最能体现高稳定性的场景。本文完整方法在该场景下的稳定性指标如下：
 
@@ -158,7 +186,7 @@ runs/figures/td3_her_curriculum_random_servo_projection.png
 
 这些结果说明，本文方法不是单纯提高最终定位误差，而是在接触变力扰动下同时降低了末端加速度、峰峰值、jerk 和控制动作变化量，因此可以支撑“高精度与高稳定性协同优化”的结论。
 
-## 8. 34 项综合领先统计
+## 9. 34 项综合领先统计
 
 最终采用统一口径统计：
 
@@ -178,9 +206,7 @@ runs/figures/td3_her_curriculum_random_servo_projection.png
 
 两项并列最优来自固定目标 Hold@5mm，因为普通基线和本文方法均达到 1.000。其余误差、稳定性和随机目标指标均由完整方法严格领先。
 
-## 9. 与中期答辩结果的提升关系
-
-## 9. 消融实验结果
+## 10. 消融实验结果
 
 消融实验报告见：
 
@@ -200,7 +226,7 @@ runs/results/ablation_report.md
 
 该结果说明，HER 和课程学习主要帮助高精度成功率与随机目标泛化；动作平滑开始降低稳定性指标；最终加入近目标精密伺服后，最终误差和稳定性指标同步大幅下降。也就是说，最终方法的优势不是单个模块带来的，而是 HER、课程学习、稳定性约束和近目标精密伺服共同作用的结果。
 
-## 10. 与中期答辩结果的提升关系
+## 11. 与中期答辩结果的提升关系
 
 中期答辩阶段的主要结论是：在 IK 引导残差控制框架下，DDPG、TD3、SAC、TQC 均能达到 20 mm 精度，算法差异主要体现在 10 mm 和 5 mm 阈值附近的精细收敛能力。
 
@@ -212,7 +238,7 @@ runs/results/ablation_report.md
 
 因此，最终答辩可以沿用中期答辩的逻辑，但结论应从“20 mm Reach 可行性验证”升级为“5 mm 高精度 Reach 与接触变力稳定性协同优化”。
 
-## 11. 创新点总结
+## 12. 创新点总结
 
 本文创新点建议凝练为以下三点：
 
@@ -222,7 +248,7 @@ runs/results/ablation_report.md
 
 单独将“TD3+HER+课程学习”作为创新点略显不足；将其与 5 mm 高精度目标、接触变力稳定性评价、稳定性奖励和近目标精密伺服共同构成完整方法体系，创新性更充分，也更适合最终答辩表述。
 
-## 12. 答辩结果图组织建议
+## 13. 答辩结果图组织建议
 
 最终答辩建议沿用中期答辩的图表逻辑，并进一步强化稳定性：
 
