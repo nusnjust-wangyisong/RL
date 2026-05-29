@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rl-reach-stability"
+version = "0.1.0"
+description = "High-precision Franka Panda Reach experiments with HER, curriculum learning, and vibration stability metrics."
+requires-python = ">=3.10"
+dependencies = [
+  "gymnasium>=0.29,<1.1",
+  "panda-gym>=3.0.7",
+  "pybullet>=3.2.6",
+  "stable-baselines3>=2.3.0",
+  "sb3-contrib>=2.3.0",
+  "torch==2.5.1",
+  "numpy>=1.23",
+  "matplotlib>=3.7",
+  "pandas>=2.0",
+  "pyyaml>=6.0",
+  "tqdm>=4.66",
+  "imageio>=2.34",
+  "rich>=13.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
