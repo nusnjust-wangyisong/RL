@@ -274,6 +274,12 @@ runs/irb120/figures/irb120_fixed_reach_render.png
 runs/irb120/figures/irb120_random_reach_render.png
 runs/irb120/figures/irb120_reach_projection_panel.png
 runs/irb120/figures/irb120_reach_render_panel.png
+runs/irb120/figures/slides/slide_table_final_distance_random_medium.png
+runs/irb120/figures/slides/slide_xz_projection_random_medium.png
+runs/irb120/figures/slides/slide_dashboard_random_medium.png
+runs/irb120/figures/slides/slide_table_final_distance_fixed_medium.png
+runs/irb120/figures/slides/slide_xz_projection_fixed_medium.png
+runs/irb120/figures/slides/slide_dashboard_fixed_medium.png
 ```
 
 ## 14. IRB120 双环境扩展结果

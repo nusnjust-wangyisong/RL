@@ -322,6 +322,12 @@ runs/irb120/figures/irb120_fixed_reach_render.png
 runs/irb120/figures/irb120_random_reach_render.png
 runs/irb120/figures/irb120_reach_projection_panel.png
 runs/irb120/figures/irb120_reach_render_panel.png
+runs/irb120/figures/slides/slide_table_final_distance_random_medium.png
+runs/irb120/figures/slides/slide_xz_projection_random_medium.png
+runs/irb120/figures/slides/slide_dashboard_random_medium.png
+runs/irb120/figures/slides/slide_table_final_distance_fixed_medium.png
+runs/irb120/figures/slides/slide_xz_projection_fixed_medium.png
+runs/irb120/figures/slides/slide_dashboard_fixed_medium.png
 ```
 
 重新训练 IRB120 对比模型：
@@ -388,6 +394,20 @@ python -m rl_reach.plotting \
   --random-goal \
   --name irb120_random_reach \
   --render-snapshot
+
+python -m rl_reach.slide_visuals \
+  --config configs/experiment_irb120.yaml \
+  --model-dir runs/irb120/models \
+  --episodes 20 \
+  --task random \
+  --disturbance medium
+
+python -m rl_reach.slide_visuals \
+  --config configs/experiment_irb120.yaml \
+  --model-dir runs/irb120/models \
+  --episodes 20 \
+  --task fixed \
+  --disturbance medium
 ```
 
 IRB120 当前复现结论：
