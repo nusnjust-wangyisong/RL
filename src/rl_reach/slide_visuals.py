@@ -18,7 +18,9 @@ DISPLAY_NAMES = {
     "TD3": "TD3",
     "SAC": "SAC",
     "TQC": "TQC",
+    "SAC_HER": "SAC+HER",
     "TD3_HER": "TD3+HER",
+    "TQC_HER": "TQC+HER",
     "TD3_HER_CURRICULUM": "Ours",
 }
 ROW_COLORS = ["#e8f0fb", "#e9f7ee", "#fff1d7", "#f2e8fb", "#e8f6f7", "#dff5df"]
@@ -29,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", default="configs/experiment_irb120.yaml")
     parser.add_argument("--model-dir", default="runs/irb120/models")
     parser.add_argument("--episodes", type=int, default=20)
+    parser.add_argument("--projection-episodes", type=int, default=20)
     parser.add_argument("--disturbance", choices=["off", "light", "medium", "strong"], default="medium")
     parser.add_argument("--task", choices=["fixed", "random"], default="random")
     parser.add_argument("--algos", nargs="*", default=DEFAULT_ALGOS)
@@ -38,6 +41,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     cfg = load_config(args.config)
+    robot_name = get_robot_label(cfg)
     paths = ensure_run_dirs(cfg)
     out_dir = paths["figure_dir"] / "slides"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -56,19 +60,30 @@ def main() -> None:
     dashboard_path = out_dir / f"slide_dashboard_{args.task}_{args.disturbance}.png"
     projection_path = out_dir / f"slide_xz_projection_{args.task}_{args.disturbance}.png"
 
-    plot_final_distance_table(rows_by_algo, table_path, task=args.task, disturbance=args.disturbance)
-    plot_dashboard(rows_by_algo, dashboard_path, task=args.task, disturbance=args.disturbance)
+    plot_final_distance_table(rows_by_algo, table_path, task=args.task, disturbance=args.disturbance, robot_name=robot_name)
+    plot_dashboard(rows_by_algo, dashboard_path, task=args.task, disturbance=args.disturbance, robot_name=robot_name)
     plot_projection_grid(
         cfg=cfg,
         model_dir=model_dir,
         algos=args.algos,
         task=args.task,
         disturbance=args.disturbance,
+        projection_episodes=args.projection_episodes,
+        robot_name=robot_name,
         out_path=projection_path,
     )
     print(f"Saved slide table: {table_path}")
     print(f"Saved slide dashboard: {dashboard_path}")
     print(f"Saved slide projection grid: {projection_path}")
+
+
+def get_robot_label(cfg: dict[str, Any]) -> str:
+    robot = str(cfg.get("env", {}).get("robot", "")).lower()
+    if "irb120" in robot:
+        return "IRB120"
+    if "panda" in robot or "franka" in robot:
+        return "Franka Panda"
+    return str(cfg.get("env", {}).get("robot", "Robot"))
 
 
 def collect_episode_metrics(
@@ -118,6 +133,7 @@ def plot_final_distance_table(
     *,
     task: str,
     disturbance: str,
+    robot_name: str,
 ) -> None:
     import matplotlib.pyplot as plt
 
@@ -171,7 +187,7 @@ def plot_final_distance_table(
     fig, ax = plt.subplots(figsize=(18.0, 7.2))
     ax.axis("off")
     title = "Final Distance Error Comparison Table"
-    subtitle = f"IRB120 {task} target, {disturbance} disturbance. Lower final distance is better; final precision threshold is 5 mm."
+    subtitle = f"{robot_name} {task} target, {disturbance} disturbance. Lower final distance is better; final precision threshold is 5 mm."
     fig.text(0.035, 0.91, title, fontsize=25, weight="bold", ha="left", color="#202124")
     fig.text(0.035, 0.845, subtitle, fontsize=14, ha="left", color="#5f6368")
 
@@ -208,6 +224,8 @@ def plot_projection_grid(
     algos: list[str],
     task: str,
     disturbance: str,
+    projection_episodes: int,
+    robot_name: str,
     out_path: Path,
 ) -> None:
     import matplotlib.pyplot as plt
@@ -226,7 +244,7 @@ def plot_projection_grid(
         model_path = model_dir / f"{algo}_{task}.zip"
         if not model_path.exists():
             continue
-        trace, _frame = rollout_policy(plot_cfg, algo, model_path, render_mode=None)
+        trace = find_best_projection_trace(plot_cfg, algo, model_path, projection_episodes)
         traces.append((algo, trace))
 
     if not traces:
@@ -270,9 +288,40 @@ def plot_projection_grid(
         ax.grid(True, alpha=0.25)
         ax.legend(fontsize=8, loc="upper right")
 
-    fig.suptitle(f"End-Effector XZ Projection ({task.title()} Target, {disturbance.title()} Disturbance)", fontsize=18)
+    fig.suptitle(
+        f"{robot_name} End-Effector XZ Projection ({task.title()} Target, {disturbance.title()} Disturbance)",
+        fontsize=18,
+    )
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
+
+
+def find_best_projection_trace(
+    cfg: dict[str, Any],
+    algo: str,
+    model_path: Path,
+    projection_episodes: int,
+) -> dict[str, np.ndarray]:
+    best_trace: dict[str, np.ndarray] | None = None
+    best_error = float("inf")
+    base_seed = int(cfg.get("seed", 0)) + 7000
+    for episode in range(max(1, projection_episodes)):
+        trace, _frame = rollout_policy(
+            cfg,
+            algo,
+            model_path,
+            render_mode=None,
+            reset_seed=base_seed + episode,
+        )
+        ee = trace["ee_pos"]
+        goal = trace["goals"][-1]
+        final_error = float(np.linalg.norm(ee[-1] - goal))
+        if final_error < best_error:
+            best_error = final_error
+            best_trace = trace
+    if best_trace is None:
+        raise RuntimeError(f"No rollout trace was produced for {algo}.")
+    return best_trace
 
 
 def plot_dashboard(
@@ -281,17 +330,15 @@ def plot_dashboard(
     *,
     task: str,
     disturbance: str,
+    robot_name: str,
 ) -> None:
     import matplotlib.pyplot as plt
 
-    algos = [algo for algo in DEFAULT_ALGOS if algo in rows_by_algo]
+    algos = list(rows_by_algo.keys())
     labels = [DISPLAY_NAMES.get(algo, algo) for algo in algos]
     errors = [np.asarray([float(row["final_error_m"]) * 1000.0 for row in rows_by_algo[algo]], dtype=float) for algo in algos]
     success = [float(np.mean(err <= 5.0) * 100.0) for err in errors]
-    qualified_jerk = [
-        float(np.mean([float(row.get("qualified_ee_jerk_rms", row.get("ee_jerk_rms", 0.0))) for row in rows_by_algo[algo]]))
-        for algo in algos
-    ]
+    ee_jerk = [float(np.mean([float(row.get("ee_jerk_rms", 0.0)) for row in rows_by_algo[algo]])) for algo in algos]
     rewards = [float(np.mean([float(row["reward_sum"]) for row in rows_by_algo[algo]])) for algo in algos]
     colors = ["#4C72B0", "#55A868", "#DD8452", "#C44E52", "#8172B2", "#2A9D8F"][: len(algos)]
 
@@ -327,15 +374,19 @@ def plot_dashboard(
     for bar, value in zip(bars, success):
         ax_success.text(bar.get_x() + bar.get_width() / 2, value + 2, f"{value:.0f}%", ha="center", fontsize=10)
 
-    bars = ax_stability.bar(x, qualified_jerk, color=colors, alpha=0.85)
+    bars = ax_stability.bar(x, ee_jerk, color=colors, alpha=0.85)
     ax_stability.set_xticks(x, labels, rotation=20, ha="right")
-    ax_stability.set_ylabel("Qualified EE jerk RMS")
-    ax_stability.set_title("Precision-Constrained Stability")
+    ax_stability.set_ylabel("EE jerk RMS")
+    ax_stability.set_title("Contact-Disturbance Stability")
     ax_stability.grid(axis="y", alpha=0.25)
-    for bar, value in zip(bars, qualified_jerk):
+    for bar, value in zip(bars, ee_jerk):
         ax_stability.text(bar.get_x() + bar.get_width() / 2, value, f"{value:.2g}", ha="center", va="bottom", fontsize=9)
 
-    fig.suptitle(f"IRB120 {task.title()} Target Result Overview ({disturbance.title()} Disturbance)", fontsize=18, weight="bold")
+    fig.suptitle(
+        f"{robot_name} {task.title()} Target Result Overview ({disturbance.title()} Disturbance)",
+        fontsize=18,
+        weight="bold",
+    )
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
 

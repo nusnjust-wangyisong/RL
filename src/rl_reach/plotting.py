@@ -112,13 +112,17 @@ def rollout_policy(
     model_path: Path,
     *,
     render_mode: str | None,
+    reset_seed: int | None = None,
 ) -> tuple[dict[str, np.ndarray], np.ndarray | None]:
     from stable_baselines3.common.monitor import Monitor
 
     cfg = deep_update(cfg, {"env": {"terminate_on_success": False}})
     env = Monitor(make_env(cfg, render_mode=render_mode, seed=int(cfg.get("seed", 0)) + 2026)())
     model = load_model(algo, str(model_path), env, cfg)
-    obs, _ = env.reset()
+    if reset_seed is None:
+        obs, _ = env.reset()
+    else:
+        obs, _ = env.reset(seed=reset_seed)
     done = False
     prev_action = None
     frame: np.ndarray | None = env.render() if render_mode == "rgb_array" else None

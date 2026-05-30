@@ -322,12 +322,17 @@ runs/irb120/figures/irb120_fixed_reach_render.png
 runs/irb120/figures/irb120_random_reach_render.png
 runs/irb120/figures/irb120_reach_projection_panel.png
 runs/irb120/figures/irb120_reach_render_panel.png
-runs/irb120/figures/slides/slide_table_final_distance_random_medium.png
-runs/irb120/figures/slides/slide_xz_projection_random_medium.png
-runs/irb120/figures/slides/slide_dashboard_random_medium.png
-runs/irb120/figures/slides/slide_table_final_distance_fixed_medium.png
-runs/irb120/figures/slides/slide_xz_projection_fixed_medium.png
-runs/irb120/figures/slides/slide_dashboard_fixed_medium.png
+```
+
+最终答辩主展示图使用 Franka Panda 已收敛模型生成，路径为：
+
+```text
+runs/figures/slides/slide_table_final_distance_random_medium.png
+runs/figures/slides/slide_xz_projection_random_medium.png
+runs/figures/slides/slide_dashboard_random_medium.png
+runs/figures/slides/slide_table_final_distance_fixed_medium.png
+runs/figures/slides/slide_xz_projection_fixed_medium.png
+runs/figures/slides/slide_dashboard_fixed_medium.png
 ```
 
 重新训练 IRB120 对比模型：
@@ -396,9 +401,30 @@ python -m rl_reach.plotting \
   --render-snapshot
 
 python -m rl_reach.slide_visuals \
+  --config configs/experiment.yaml \
+  --model-dir runs/models \
+  --episodes 30 \
+  --projection-episodes 30 \
+  --task random \
+  --disturbance medium
+
+python -m rl_reach.slide_visuals \
+  --config configs/experiment.yaml \
+  --model-dir runs/models \
+  --episodes 30 \
+  --projection-episodes 30 \
+  --task fixed \
+  --disturbance medium
+```
+
+IRB120 扩展图可用下面命令单独生成，主要用于跨机械臂泛化验证：
+
+```bash
+python -m rl_reach.slide_visuals \
   --config configs/experiment_irb120.yaml \
   --model-dir runs/irb120/models \
   --episodes 20 \
+  --projection-episodes 20 \
   --task random \
   --disturbance medium
 
@@ -406,6 +432,7 @@ python -m rl_reach.slide_visuals \
   --config configs/experiment_irb120.yaml \
   --model-dir runs/irb120/models \
   --episodes 20 \
+  --projection-episodes 20 \
   --task fixed \
   --disturbance medium
 ```

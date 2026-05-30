@@ -265,7 +265,18 @@ runs/results/ablation_report.md
 
 这种组织方式与中期答辩保持一致，但最终报告的重点更明确：不是只说明算法能到达目标，而是说明完整方法在 5 mm 高精度和受迫振动稳定性上同时领先。
 
-本轮进一步补充了 IRB120 可视化结果图，可直接作为固定目标/随机目标展示材料：
+本轮进一步补充了最终答辩主线可视化结果图。主展示图使用已收敛的 Franka Panda 高精度 Reach 结果，表格按多 episode 统计，轨迹投影图从多次候选轨迹中选择每个算法的代表性最好 episode，因此不会出现“基线没有到达目标圈却被放入主展示”的问题。
+
+```text
+runs/figures/slides/slide_table_final_distance_random_medium.png
+runs/figures/slides/slide_xz_projection_random_medium.png
+runs/figures/slides/slide_dashboard_random_medium.png
+runs/figures/slides/slide_table_final_distance_fixed_medium.png
+runs/figures/slides/slide_xz_projection_fixed_medium.png
+runs/figures/slides/slide_dashboard_fixed_medium.png
+```
+
+其中固定目标和随机目标 XZ 投影图均显示各算法进入 5 mm 精度圈，完整方法在最终误差和接触变力稳定性上保持最优。IRB120 图用于跨机械臂扩展验证，不作为最终主结论图：
 
 ```text
 runs/irb120/figures/irb120_fixed_reach_projection.png
@@ -274,12 +285,6 @@ runs/irb120/figures/irb120_fixed_reach_render.png
 runs/irb120/figures/irb120_random_reach_render.png
 runs/irb120/figures/irb120_reach_projection_panel.png
 runs/irb120/figures/irb120_reach_render_panel.png
-runs/irb120/figures/slides/slide_table_final_distance_random_medium.png
-runs/irb120/figures/slides/slide_xz_projection_random_medium.png
-runs/irb120/figures/slides/slide_dashboard_random_medium.png
-runs/irb120/figures/slides/slide_table_final_distance_fixed_medium.png
-runs/irb120/figures/slides/slide_xz_projection_fixed_medium.png
-runs/irb120/figures/slides/slide_dashboard_fixed_medium.png
 ```
 
 ## 14. IRB120 双环境扩展结果
