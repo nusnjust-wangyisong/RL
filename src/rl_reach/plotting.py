@@ -52,7 +52,7 @@ def plot_policy_projection(cfg: dict[str, Any], algo: str, model_path: Path, out
     goal = trace["goals"][-1]
     thresholds = cfg.get("env", {}).get("thresholds_m", [0.05, 0.03, 0.02, 0.01, 0.005])
 
-    fig, axes = plt.subplots(2, 1, figsize=(5.4, 8.2), constrained_layout=True)
+    fig, axes = plt.subplots(2, 1, figsize=(5.4, 8.6), constrained_layout=True)
     views = [(0, 2, "x (m)", "z (m)"), (1, 2, "y (m)", "z (m)")]
     colors = {0.05: "tab:green", 0.03: "tab:blue", 0.02: "tab:purple", 0.01: "tab:red", 0.005: "tab:orange"}
     for ax, (i, j, xlabel, ylabel) in zip(axes, views):
@@ -76,11 +76,20 @@ def plot_policy_projection(cfg: dict[str, Any], algo: str, model_path: Path, out
         ax.set_aspect("equal", adjustable="box")
         ax.grid(True, alpha=0.25)
     final_error = float(np.linalg.norm(ee[-1] - goal))
-    axes[0].set_title(f"{algo} | distance to target: {final_error * 1000:.1f} mm")
     handles, labels = axes[0].get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
-    axes[0].legend(by_label.values(), by_label.keys(), ncol=4, fontsize=8, loc="upper center")
-    fig.savefig(out_path, dpi=180)
+    display_algo = algo.replace("_HER_CURRICULUM", "+HER+Curriculum").replace("_HER", "+HER")
+    fig.suptitle(f"{display_algo} | distance to target: {final_error * 1000:.1f} mm", fontsize=13)
+    fig.legend(
+        by_label.values(),
+        by_label.keys(),
+        ncol=4,
+        fontsize=8,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.955),
+        frameon=True,
+    )
+    fig.savefig(out_path, dpi=180, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved projection figure: {out_path}")
 
@@ -100,7 +109,8 @@ def plot_policy_snapshot(cfg: dict[str, Any], algo: str, model_path: Path, out_p
     ax.imshow(frame)
     ax.set_axis_off()
     mode = "fixed target" if cfg.get("env", {}).get("fixed_goal") else "random target"
-    ax.set_title(f"{algo} | {mode} | final error {final_error * 1000:.2f} mm")
+    display_algo = algo.replace("_HER_CURRICULUM", "+HER+Curriculum").replace("_HER", "+HER")
+    ax.set_title(f"{display_algo} | {mode} | final error {final_error * 1000:.2f} mm")
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
     print(f"Saved render snapshot: {out_path}")

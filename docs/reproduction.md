@@ -417,29 +417,41 @@ python -m rl_reach.slide_visuals \
   --disturbance medium
 ```
 
-IRB120 扩展图可用下面命令单独生成，主要用于跨机械臂泛化验证：
+IRB120 扩展图主要展示完整方法自身的跨机械臂泛化效果。为了避免短训普通基线没有到达目标时生成不适合展示的网格图，IRB120 不再使用 `slide_visuals` 生成多算法 slide 网格，而是使用下面命令生成完整方法的固定/随机目标投影与渲染图：
 
 ```bash
-python -m rl_reach.slide_visuals \
+python -m rl_reach.plotting \
   --config configs/experiment_irb120.yaml \
-  --model-dir runs/irb120/models \
-  --episodes 20 \
-  --projection-episodes 20 \
-  --task random \
-  --disturbance medium
+  --algo TD3_HER_CURRICULUM \
+  --model runs/irb120/models/TD3_HER_CURRICULUM_fixed.zip \
+  --fixed-goal \
+  --name irb120_fixed_reach \
+  --render-snapshot
 
-python -m rl_reach.slide_visuals \
+python -m rl_reach.plotting \
   --config configs/experiment_irb120.yaml \
-  --model-dir runs/irb120/models \
-  --episodes 20 \
-  --projection-episodes 20 \
-  --task fixed \
-  --disturbance medium
+  --algo TD3_HER_CURRICULUM \
+  --model runs/irb120/models/TD3_HER_CURRICULUM_random.zip \
+  --random-goal \
+  --name irb120_random_reach \
+  --render-snapshot
 ```
 
 IRB120 当前复现结论：
 
 ```text
+优化后的 IK 精密伺服参数：
+precision_servo_beta=0.20
+precision_servo_max_action=0.16
+precision_servo_joint_gain=1.15
+precision_servo_ik_iterations=160
+
+完整方法最终误差：
+自由空间固定目标 0.176 mm
+自由空间随机目标 0.205 mm
+接触变力固定目标 0.176 mm
+接触变力随机目标 0.205 mm
+
 自由空间和接触变力 × 固定/随机目标 × 15 个精度与精度约束稳定性指标
 = 60 项指标
 
