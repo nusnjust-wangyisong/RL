@@ -6,7 +6,7 @@ env:
   robot: irb120
   control_type: joint_delta
   render_mode: null
-  max_episode_steps: 90
+  max_episode_steps: 180
   fixed_goal: false
   fixed_goal_position: [0.35, 0.0, 0.35]
   random_goal_range:
@@ -83,11 +83,17 @@ eval:
   action_filter_beta: 0.25
   precision_servo_algorithms: [TD3_HER_CURRICULUM]
   precision_servo_gain: 8.0
-  precision_servo_beta: 0.20
-  precision_servo_max_action: 0.16
-  precision_servo_joint_gain: 1.15
+  precision_servo_beta: 0.60
+  precision_servo_max_action: 0.08
+  precision_servo_joint_gain: 1.20
   precision_servo_ik_iterations: 160
   precision_servo_ik_residual: 0.000001
+  precision_servo_near_radius_m: 0.030
+  precision_servo_hold_radius_m: 0.006
+  precision_servo_near_scale: 0.65
+  precision_servo_hold_scale: 0.35
+  precision_servo_max_delta: 0.020
+  precision_servo_damping: 0.004
 
 experiments:
   algorithms:

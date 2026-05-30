@@ -507,6 +507,7 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
         self._rng = np.random.default_rng(seed if seed is not None else cfg.get("seed", None))
         self.trace = EpisodeTrace()
         self._prev_action: np.ndarray | None = None
+        self._servo_prev_action: np.ndarray | None = None
         self._prev_ee_vel: np.ndarray | None = None
         self._prev_ee_acc: np.ndarray | None = None
         self._prev_joint_vel: np.ndarray | None = None
@@ -542,6 +543,7 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
         self.step_count = 0
         self.trace = EpisodeTrace()
         self._prev_action = None
+        self._servo_prev_action = None
         self._prev_ee_vel = None
         self._prev_ee_acc = None
         self._prev_joint_vel = None
@@ -656,15 +658,37 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
             physicsClientId=self.client_id,
         )
         target_q = np.asarray(ik[: self.dof], dtype=float)
+        ee = np.asarray(obs.get("achieved_goal", self._get_ee_position()), dtype=float).reshape(-1)[:3]
+        distance = float(np.linalg.norm(goal - ee)) if ee.size >= 3 else self._current_distance()
         max_action = float(eval_cfg.get("precision_servo_max_action", 0.35))
+        hold_radius = float(eval_cfg.get("precision_servo_hold_radius_m", 0.006))
+        near_radius = float(eval_cfg.get("precision_servo_near_radius_m", 0.030))
+        near_scale = float(eval_cfg.get("precision_servo_near_scale", 0.65))
+        hold_scale = float(eval_cfg.get("precision_servo_hold_scale", 0.35))
+        if distance <= hold_radius:
+            max_action *= hold_scale
+        elif distance <= near_radius:
+            ratio = (distance - hold_radius) / max(near_radius - hold_radius, 1e-9)
+            smooth = ratio * ratio * (3.0 - 2.0 * ratio)
+            max_action *= hold_scale + (near_scale - hold_scale) * smooth
         beta = float(np.clip(float(eval_cfg.get("precision_servo_beta", 0.35)), 0.0, 1.0))
         servo = np.clip((target_q - q) / max(self.action_scale_rad, 1e-9), -max_action, max_action)
         gain = float(eval_cfg.get("precision_servo_joint_gain", 1.0))
         guided = np.asarray(action, dtype=float).copy()
         guided = (1.0 - gain) * guided + gain * servo
+        damping = float(eval_cfg.get("precision_servo_damping", 0.0))
+        if damping > 0.0:
+            joint_vel = self._get_joint_velocity()
+            if joint_vel.size >= self.dof:
+                guided -= damping * joint_vel[: self.dof] / max(self.action_scale_rad, 1e-9)
         if prev_action is not None:
             guided = beta * guided + (1.0 - beta) * np.asarray(prev_action, dtype=float)
-        return np.clip(guided, -1.0, 1.0)
+        max_delta = float(eval_cfg.get("precision_servo_max_delta", 0.0))
+        if max_delta > 0.0 and self._servo_prev_action is not None:
+            guided = self._servo_prev_action + np.clip(guided - self._servo_prev_action, -max_delta, max_delta)
+        guided = np.clip(guided, -1.0, 1.0)
+        self._servo_prev_action = guided.copy()
+        return guided
 
     def _load_world(self) -> None:
         self.p.resetSimulation(physicsClientId=self.client_id)

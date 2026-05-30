@@ -446,22 +446,27 @@ IRB120 当前复现结论：
 
 ```text
 优化后的 IK 精密伺服参数：
-precision_servo_beta=0.20
-precision_servo_max_action=0.16
-precision_servo_joint_gain=1.15
+max_episode_steps=180
+precision_servo_beta=0.60
+precision_servo_max_action=0.08
+precision_servo_joint_gain=1.20
+precision_servo_max_delta=0.020
+precision_servo_damping=0.004
 precision_servo_ik_iterations=160
 
 完整方法最终误差：
-自由空间固定目标 0.176 mm
-自由空间随机目标 0.205 mm
-接触变力固定目标 0.176 mm
-接触变力随机目标 0.205 mm
+自由空间固定目标 0.241 mm
+自由空间随机目标 0.493 mm
+接触变力固定目标 0.242 mm
+接触变力随机目标 0.493 mm
 
 自由空间和接触变力 × 固定/随机目标 × 15 个精度与精度约束稳定性指标
 = 60 项指标
 
 完整方法相对 DDPG、TD3、SAC、TQC、TD3+HER 基线：
 严格领先 60 项，并列 0 项，未领先 0 项。
+
+同时，完整方法在 raw 最终误差、raw 加速度 RMS、raw 峰峰值、raw jerk、raw 动作变化量和 raw 振动指数上也均为同组最优。`qualified_*` 指标用于防止“没有到达目标但运动很小”的误判，不是唯一支撑结论的指标。
 ```
 
 注意：IRB120 的原始稳定性指标仍会保留。若某些基线几乎不动，原始加速度可能很小，但最终误差达到 10 cm 以上，不能代表接触加工稳定性。因此新增 `qualified_*` 精度约束稳定性指标：没有达到 5 mm 加工精度的策略会加入误差惩罚，避免把“未到达目标但动作很小”误判为高稳定。
