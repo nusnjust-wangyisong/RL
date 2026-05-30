@@ -1,5 +1,0 @@
-pybullet build time: Jan 29 2025 23:16:28
-argv[0]=--background_color_red=0.8745098114013672
-argv[1]=--background_color_green=0.21176470816135406
-argv[2]=--background_color_blue=0.1764705926179886
-Saved model: runs/models/TD3_fixed.zip

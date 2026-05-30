@@ -17,5 +17,10 @@ build/
 dist/
 *.egg-info/
 
+runs/logs/
+runs/**/logs/
+runs/results/slides/
+runs/**/__pycache__/
+
 .DS_Store
 Thumbs.db

@@ -13,19 +13,13 @@ TQC 已加入对比，来自 `sb3-contrib`。
 
 ## 环境准备
 
-当前机器已配置 conda 环境 `rl_reach`：
+推荐使用 conda 环境 `rl_reach`：
 
 ```bash
-cd /home/kaixin/code/RL
+cd /path/to/RL
 conda activate rl_reach
 PYTHONNOUSERSITE=1 python -m pip install -r requirements.txt
 PYTHONNOUSERSITE=1 python -m pip install -e .
-```
-
-本机实际解释器路径为：
-
-```bash
-/home/kaixin/anaconda3/envs/rl_reach/bin/python
 ```
 
 ## 单个算法训练

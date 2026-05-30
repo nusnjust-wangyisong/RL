@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CONFIG=${CONFIG:-configs/experiment.yaml}
-PY=${PY:-/home/kaixin/anaconda3/envs/rl_reach/bin/python}
+PY=${PY:-python}
 BASE_STEPS=${BASE_STEPS:-60000}
 FULL_STEPS=${FULL_STEPS:-100000}
 MAX_JOBS=${MAX_JOBS:-4}

@@ -7,25 +7,19 @@
 项目路径：
 
 ```bash
-cd /home/kaixin/code/RL
+cd /path/to/RL
 ```
 
-当前已配置 conda 环境：
+推荐使用 conda 环境：
 
 ```bash
 conda activate rl_reach
 ```
 
-本机 Python 路径：
-
-```bash
-/home/kaixin/anaconda3/envs/rl_reach/bin/python
-```
-
 推荐使用如下命令安装依赖和项目包：
 
 ```bash
-cd /home/kaixin/code/RL
+cd /path/to/RL
 conda activate rl_reach
 PYTHONNOUSERSITE=1 python -m pip install -r requirements.txt
 PYTHONNOUSERSITE=1 python -m pip install -e .
@@ -338,7 +332,7 @@ runs/figures/slides/slide_dashboard_fixed_medium.png
 重新训练 IRB120 对比模型：
 
 ```bash
-cd /home/kaixin/code/RL
+cd /path/to/RL
 conda activate rl_reach
 export PYTHONNOUSERSITE=1
 export PYTHONPATH=src
