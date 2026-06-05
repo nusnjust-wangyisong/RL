@@ -174,7 +174,7 @@ PYTHONNOUSERSITE=1 python -m rl_reach.run_suite \
   --output suite_summary_medium_servo.csv
 ```
 
-生成 Markdown 结果表：
+如需查看逐算法的 Markdown 结果表，可用下面命令按需生成（这些是中间产物，最终结论与完整对比表已收录在 `docs/report.md` 附录 A，无需提交到仓库）：
 
 ```bash
 PYTHONNOUSERSITE=1 python -m rl_reach.report \
@@ -186,14 +186,13 @@ PYTHONNOUSERSITE=1 python -m rl_reach.report \
   --output runs/results/experiment_report_medium_servo.md
 ```
 
-当前已经生成的核心结果文件：
+核心结果以 CSV 形式保留，作为 `docs/report.md` 的源数据：
 
 ```text
 runs/results/suite_summary_free_servo.csv
 runs/results/suite_summary_medium_servo.csv
-runs/results/experiment_report_free_servo.md
-runs/results/experiment_report_medium_servo.md
-runs/results/advantage_report.md
+runs/results/advantage_report.csv
+runs/results/ablation_report.csv
 ```
 
 ## 7. 结果图生成
@@ -318,8 +317,7 @@ IRB120 与 Panda 的主要差异是动作空间和观测空间不同：Panda 主
 runs/irb120/models/
 runs/irb120/results/suite_summary_free_optimized.csv
 runs/irb120/results/suite_summary_medium_optimized.csv
-runs/irb120/results/irb120_experiment_report_free.md
-runs/irb120/results/irb120_experiment_report_medium.md
+runs/irb120/results/ik_variant_summary_medium.csv
 runs/irb120/figures/irb120_medium_optimized_metrics.png
 runs/irb120/figures/irb120_fixed_reach_projection.png
 runs/irb120/figures/irb120_random_reach_projection.png
@@ -377,7 +375,7 @@ python -m rl_reach.run_suite \
   --output suite_summary_medium_optimized.csv
 ```
 
-生成 IRB120 报告和图：
+生成 IRB120 图（逐算法 Markdown 表可选，按需生成；完整对比表已收录在 `docs/report.md` 附录 A）：
 
 ```bash
 python -m rl_reach.report \
