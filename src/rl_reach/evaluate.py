@@ -23,6 +23,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fixed-goal", action="store_true")
     parser.add_argument("--random-goal", action="store_true")
     parser.add_argument("--disturbance", choices=["off", "light", "medium", "strong"], default="medium")
+    parser.add_argument("--precision-servo-mode", default=None)
+    parser.add_argument("--no-precision-servo", action="store_true")
+    parser.add_argument("--include-ik-observation", action="store_true")
     parser.add_argument("--output-name", default=None)
     parser.add_argument("--render", action="store_true")
     return parser.parse_args()
@@ -136,6 +139,12 @@ def main() -> None:
     else:
         strength = cfg.get("disturbance", {}).get("strengths", {}).get(args.disturbance, {})
         cfg = deep_update(cfg, {"disturbance": {"enabled": True, **strength}})
+    if args.precision_servo_mode:
+        cfg = deep_update(cfg, {"eval": {"precision_servo_mode": args.precision_servo_mode}})
+    if args.no_precision_servo:
+        cfg = deep_update(cfg, {"eval": {"precision_servo_algorithms": []}})
+    if args.include_ik_observation:
+        cfg = deep_update(cfg, {"env": {"include_ik_observation": True}})
 
     paths = ensure_run_dirs(cfg)
     name = args.output_name or f"{args.algo}_{'fixed' if cfg['env'].get('fixed_goal') else 'random'}_{args.disturbance}"

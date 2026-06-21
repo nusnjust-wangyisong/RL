@@ -82,10 +82,15 @@ eval:
   stable_filter_algorithms: [TD3_HER_CURRICULUM]
   action_filter_beta: 0.25
   precision_servo_algorithms: [TD3_HER_CURRICULUM]
+  precision_servo_mode: ik_blend
   precision_servo_gain: 8.0
   precision_servo_beta: 0.60
   precision_servo_max_action: 0.08
   precision_servo_joint_gain: 1.20
+  precision_servo_residual_scale: 0.25
+  precision_servo_residual_radius_m: 0.050
+  precision_servo_residual_min_alpha: 0.005
+  precision_servo_residual_max_alpha: 0.015
   precision_servo_ik_iterations: 160
   precision_servo_ik_residual: 0.000001
   precision_servo_near_radius_m: 0.030

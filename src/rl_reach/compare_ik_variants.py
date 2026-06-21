@@ -4,21 +4,19 @@ import argparse
 import csv
 import json
 from pathlib import Path
+from typing import Any
 
 from rl_reach.config import deep_update, ensure_run_dirs, load_config
 from rl_reach.evaluate import evaluate_policy
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate a full algorithm suite from saved models.")
-    parser.add_argument("--config", default="configs/experiment.yaml")
-    parser.add_argument("--model-dir", default="runs/models")
+    parser = argparse.ArgumentParser(description="Compare IK execution/training variants on fixed and random goals.")
+    parser.add_argument("--config", default="configs/experiment_irb120.yaml")
+    parser.add_argument("--model-dir", default=None)
     parser.add_argument("--episodes", type=int, default=30)
-    parser.add_argument("--output", default="suite_summary.csv")
     parser.add_argument("--disturbance", choices=["off", "light", "medium", "strong"], default="medium")
-    parser.add_argument("--precision-servo-mode", default=None)
-    parser.add_argument("--no-precision-servo", action="store_true")
-    parser.add_argument("--include-ik-observation", action="store_true")
+    parser.add_argument("--output", default="ik_variant_summary.csv")
     return parser.parse_args()
 
 
@@ -26,13 +24,37 @@ def main() -> None:
     args = parse_args()
     base_cfg = load_config(args.config)
     paths = ensure_run_dirs(base_cfg)
-    rows: list[dict[str, object]] = []
-    algorithms = base_cfg.get("experiments", {}).get("algorithms", [])
-    model_dir = Path(args.model_dir)
+    model_dir = Path(args.model_dir) if args.model_dir else paths["model_dir"]
+    rows: list[dict[str, Any]] = []
+
+    variants = [
+        {
+            "variant": "ik_servo",
+            "model_prefix": "TD3_HER_CURRICULUM",
+            "eval": {"precision_servo_mode": "ik_servo"},
+        },
+        {
+            "variant": "ik_residual",
+            "model_prefix": "TD3_HER_IK_RESIDUAL",
+            "eval": {"precision_servo_mode": "ik_residual"},
+        },
+        {
+            "variant": "her_ik_residual",
+            "model_prefix": "TD3_HER_CURRICULUM",
+            "eval": {"precision_servo_mode": "her_ik_residual"},
+        },
+        {
+            "variant": "ik_observation",
+            "model_prefix": "TD3_HER_IK_OBS",
+            "env": {"include_ik_observation": True},
+            "eval": {"precision_servo_algorithms": []},
+        },
+    ]
 
     for fixed_goal in (True, False):
-        for algo in algorithms:
-            model_path = model_dir / f"{algo}_{'fixed' if fixed_goal else 'random'}.zip"
+        task = "fixed" if fixed_goal else "random"
+        for variant in variants:
+            model_path = model_dir / f"{variant['model_prefix']}_{task}.zip"
             if not model_path.exists():
                 print(f"Skip missing model: {model_path}")
                 continue
@@ -42,22 +64,17 @@ def main() -> None:
             else:
                 strength = cfg.get("disturbance", {}).get("strengths", {}).get(args.disturbance, {})
                 cfg = deep_update(cfg, {"disturbance": {"enabled": True, **strength}})
-            if args.precision_servo_mode:
-                cfg = deep_update(cfg, {"eval": {"precision_servo_mode": args.precision_servo_mode}})
-            if args.no_precision_servo:
-                cfg = deep_update(cfg, {"eval": {"precision_servo_algorithms": []}})
-            if args.include_ik_observation:
-                cfg = deep_update(cfg, {"env": {"include_ik_observation": True}})
+            cfg = deep_update(cfg, {k: v for k, v in variant.items() if k in {"env", "eval"}})
             _episodes, summary = evaluate_policy(
                 cfg=cfg,
-                algo=algo,
+                algo="TD3_HER_CURRICULUM",
                 model_path=model_path,
                 episodes=args.episodes,
                 render=False,
             )
-            row: dict[str, object] = {
-                "algo": algo,
-                "task": "fixed" if fixed_goal else "random",
+            row = {
+                "variant": variant["variant"],
+                "task": task,
                 "disturbance": args.disturbance,
                 **summary,
             }
@@ -66,10 +83,10 @@ def main() -> None:
 
     out_path = paths["result_dir"] / args.output
     write_rows(out_path, rows)
-    print(f"Saved suite summary: {out_path}")
+    print(f"Saved IK variant summary: {out_path}")
 
 
-def write_rows(path: Path, rows: list[dict[str, object]]) -> None:
+def write_rows(path: Path, rows: list[dict[str, Any]]) -> None:
     if not rows:
         path.write_text("", encoding="utf-8")
         return

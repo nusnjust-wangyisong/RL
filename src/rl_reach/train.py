@@ -17,6 +17,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fixed-goal", action="store_true")
     parser.add_argument("--random-goal", action="store_true")
     parser.add_argument("--no-disturbance", action="store_true")
+    parser.add_argument("--precision-servo-mode", default=None)
+    parser.add_argument("--train-precision-servo", action="store_true")
+    parser.add_argument("--include-ik-observation", action="store_true")
     parser.add_argument("--run-name", default=None)
     parser.add_argument("--progress", action="store_true")
     return parser.parse_args()
@@ -31,6 +34,23 @@ def main() -> None:
         cfg = deep_update(cfg, {"env": {"fixed_goal": False}})
     if args.no_disturbance:
         cfg = deep_update(cfg, {"disturbance": {"enabled": False}})
+    if args.precision_servo_mode:
+        cfg = deep_update(
+            cfg,
+            {
+                "eval": {"precision_servo_mode": args.precision_servo_mode},
+                "reward": {"precision_servo_mode": args.precision_servo_mode},
+            },
+        )
+    if args.train_precision_servo:
+        servo_train_cfg = {
+            key: value
+            for key, value in cfg.get("eval", {}).items()
+            if key.startswith("precision_servo_")
+        }
+        cfg = deep_update(cfg, {"reward": {"precision_servo": True, **servo_train_cfg}})
+    if args.include_ik_observation:
+        cfg = deep_update(cfg, {"env": {"include_ik_observation": True}})
 
     algo = args.algo.upper()
     run_name = args.run_name or f"{algo}_{'fixed' if cfg['env'].get('fixed_goal') else 'random'}"

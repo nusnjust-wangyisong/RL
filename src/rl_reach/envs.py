@@ -143,8 +143,23 @@ class HighPrecisionReachWrapper(gym.Wrapper if gym is not None else _FallbackWra
         gain = float(eval_cfg.get("precision_servo_gain", 10.0))
         beta = float(np.clip(float(eval_cfg.get("precision_servo_beta", 0.35)), 0.0, 1.0))
         max_action = float(eval_cfg.get("precision_servo_max_action", 0.4))
-        servo = np.asarray(action, dtype=float).copy()
+        rl_action = np.asarray(action, dtype=float).copy()
+        servo = rl_action.copy()
         servo[:3] = np.clip(gain * (goal[:3] - ee[:3]), -max_action, max_action)
+        mode = str(eval_cfg.get("precision_servo_mode", "cartesian")).lower()
+        if mode in {"her_cartesian_residual", "her_ik_residual"}:
+            max_action = float(eval_cfg.get("precision_servo_residual_max_action", max_action))
+            servo[:3] = np.clip(gain * (goal[:3] - ee[:3]), -max_action, max_action)
+            residual_scale = float(eval_cfg.get("precision_servo_residual_scale", 0.08))
+            radius = float(eval_cfg.get("precision_servo_residual_radius_m", 0.05))
+            min_alpha = float(eval_cfg.get("precision_servo_residual_min_alpha", 0.005))
+            max_alpha = float(eval_cfg.get("precision_servo_residual_max_alpha", 0.03))
+            distance = float(np.linalg.norm(goal[:3] - ee[:3]))
+            closeness = 1.0 - np.clip(distance / max(radius, 1e-9), 0.0, 1.0)
+            smooth = closeness * closeness * (3.0 - 2.0 * closeness)
+            residual_weight = min_alpha + (max_alpha - min_alpha) * smooth
+            residual = np.clip(rl_action - servo, -residual_scale, residual_scale)
+            servo = servo + residual_weight * residual
         if prev_action is not None:
             servo = beta * servo + (1.0 - beta) * np.asarray(prev_action, dtype=float)
         return np.clip(servo, -1.0, 1.0)
@@ -502,6 +517,7 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
         self.dof = 6
         self.joint_ids = list(range(self.dof))
         self.ee_link_id = int(self.robot_cfg.get("ee_link_id", 6))
+        self.include_ik_observation = bool(self.env_cfg.get("include_ik_observation", False))
         self.action_scale_rad = float(self.robot_cfg.get("action_scale_rad", 0.04))
         self.joint_force = float(self.robot_cfg.get("joint_force", 180.0))
         self._rng = np.random.default_rng(seed if seed is not None else cfg.get("seed", None))
@@ -516,6 +532,8 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
 
         self.action_space = gym.spaces.Box(-1.0, 1.0, shape=(self.dof,), dtype=np.float32)
         obs_dim = self.dof + self.dof + 3 + 3 + 3 + self.dof + 1
+        if self.include_ik_observation:
+            obs_dim += self.dof
         self.observation_space = gym.spaces.Dict(
             {
                 "observation": gym.spaces.Box(-np.inf, np.inf, shape=(obs_dim,), dtype=np.float32),
@@ -645,37 +663,30 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
         if goal.size < 3:
             return action
         q = self._get_joint_position()
-        ik = self.p.calculateInverseKinematics(
-            self.robot_id,
-            self.ee_link_id,
-            goal.tolist(),
-            lowerLimits=self.lower_limits.tolist(),
-            upperLimits=self.upper_limits.tolist(),
-            jointRanges=self.joint_ranges.tolist(),
-            restPoses=q.tolist(),
-            maxNumIterations=int(eval_cfg.get("precision_servo_ik_iterations", 80)),
-            residualThreshold=float(eval_cfg.get("precision_servo_ik_residual", 1e-5)),
-            physicsClientId=self.client_id,
-        )
-        target_q = np.asarray(ik[: self.dof], dtype=float)
         ee = np.asarray(obs.get("achieved_goal", self._get_ee_position()), dtype=float).reshape(-1)[:3]
         distance = float(np.linalg.norm(goal - ee)) if ee.size >= 3 else self._current_distance()
-        max_action = float(eval_cfg.get("precision_servo_max_action", 0.35))
-        hold_radius = float(eval_cfg.get("precision_servo_hold_radius_m", 0.006))
-        near_radius = float(eval_cfg.get("precision_servo_near_radius_m", 0.030))
-        near_scale = float(eval_cfg.get("precision_servo_near_scale", 0.65))
-        hold_scale = float(eval_cfg.get("precision_servo_hold_scale", 0.35))
-        if distance <= hold_radius:
-            max_action *= hold_scale
-        elif distance <= near_radius:
-            ratio = (distance - hold_radius) / max(near_radius - hold_radius, 1e-9)
-            smooth = ratio * ratio * (3.0 - 2.0 * ratio)
-            max_action *= hold_scale + (near_scale - hold_scale) * smooth
+        servo = self._ik_delta_action(goal, q, distance, eval_cfg)
         beta = float(np.clip(float(eval_cfg.get("precision_servo_beta", 0.35)), 0.0, 1.0))
-        servo = np.clip((target_q - q) / max(self.action_scale_rad, 1e-9), -max_action, max_action)
         gain = float(eval_cfg.get("precision_servo_joint_gain", 1.0))
-        guided = np.asarray(action, dtype=float).copy()
-        guided = (1.0 - gain) * guided + gain * servo
+        mode = str(eval_cfg.get("precision_servo_mode", "ik_blend")).lower()
+        rl_action = np.asarray(action, dtype=float).copy()
+        if mode == "ik_servo":
+            guided = gain * servo
+        elif mode == "ik_residual":
+            residual_scale = float(eval_cfg.get("precision_servo_residual_scale", 0.25))
+            guided = gain * servo + residual_scale * rl_action
+        elif mode == "her_ik_residual":
+            residual_scale = float(eval_cfg.get("precision_servo_residual_scale", 0.25))
+            radius = float(eval_cfg.get("precision_servo_residual_radius_m", 0.05))
+            min_alpha = float(eval_cfg.get("precision_servo_residual_min_alpha", 0.08))
+            max_alpha = float(eval_cfg.get("precision_servo_residual_max_alpha", 0.30))
+            closeness = 1.0 - np.clip(distance / max(radius, 1e-9), 0.0, 1.0)
+            smooth = closeness * closeness * (3.0 - 2.0 * closeness)
+            residual_weight = max_alpha - (max_alpha - min_alpha) * smooth
+            residual = np.clip(rl_action - servo, -residual_scale, residual_scale)
+            guided = servo + residual_weight * residual
+        else:
+            guided = (1.0 - gain) * rl_action + gain * servo
         damping = float(eval_cfg.get("precision_servo_damping", 0.0))
         if damping > 0.0:
             joint_vel = self._get_joint_velocity()
@@ -689,6 +700,43 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
         guided = np.clip(guided, -1.0, 1.0)
         self._servo_prev_action = guided.copy()
         return guided
+
+    def _ik_delta_action(
+        self,
+        goal: np.ndarray,
+        q: np.ndarray | None = None,
+        distance: float | None = None,
+        cfg: dict[str, Any] | None = None,
+    ) -> np.ndarray:
+        cfg = cfg or {}
+        if q is None:
+            q = self._get_joint_position()
+        ik = self.p.calculateInverseKinematics(
+            self.robot_id,
+            self.ee_link_id,
+            np.asarray(goal, dtype=float).reshape(-1)[:3].tolist(),
+            lowerLimits=self.lower_limits.tolist(),
+            upperLimits=self.upper_limits.tolist(),
+            jointRanges=self.joint_ranges.tolist(),
+            restPoses=np.asarray(q, dtype=float).reshape(-1)[: self.dof].tolist(),
+            maxNumIterations=int(cfg.get("precision_servo_ik_iterations", 80)),
+            residualThreshold=float(cfg.get("precision_servo_ik_residual", 1e-5)),
+            physicsClientId=self.client_id,
+        )
+        target_q = np.asarray(ik[: self.dof], dtype=float)
+        max_action = float(cfg.get("precision_servo_max_action", 0.35))
+        if distance is not None:
+            hold_radius = float(cfg.get("precision_servo_hold_radius_m", 0.006))
+            near_radius = float(cfg.get("precision_servo_near_radius_m", 0.030))
+            near_scale = float(cfg.get("precision_servo_near_scale", 0.65))
+            hold_scale = float(cfg.get("precision_servo_hold_scale", 0.35))
+            if distance <= hold_radius:
+                max_action *= hold_scale
+            elif distance <= near_radius:
+                ratio = (distance - hold_radius) / max(near_radius - hold_radius, 1e-9)
+                smooth = ratio * ratio * (3.0 - 2.0 * ratio)
+                max_action *= hold_scale + (near_scale - hold_scale) * smooth
+        return np.clip((target_q - q) / max(self.action_scale_rad, 1e-9), -max_action, max_action)
 
     def _load_world(self) -> None:
         self.p.resetSimulation(physicsClientId=self.client_id)
@@ -761,7 +809,10 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
         ee_vel = self._get_ee_velocity()
         rel = self.goal - ee
         progress = np.asarray([self.step_count / max(self.max_episode_steps, 1)], dtype=float)
-        obs = np.concatenate([q, qd, ee, ee_vel, rel, self.prev_action.astype(float), progress])
+        parts = [q, qd, ee, ee_vel, rel, self.prev_action.astype(float), progress]
+        if self.include_ik_observation:
+            parts.append(self._ik_delta_action(self.goal, q=q, distance=float(np.linalg.norm(rel)), cfg=self.reward_cfg))
+        obs = np.concatenate(parts)
         return {
             "observation": obs.astype(np.float32),
             "achieved_goal": ee.astype(np.float32),

@@ -22,5 +22,13 @@ runs/**/logs/
 runs/results/slides/
 runs/**/__pycache__/
 
+# 原始逐 episode 轨迹（中间产物，可由 evaluate 重新生成）
+runs/**/*_episodes.csv
+
+# 项目插图素材（非实验结果，未被文档引用，按需手动加入）
+/generated_project_images/
+/real_environment_images/
+/*.png
+
 .DS_Store
 Thumbs.db
