@@ -56,6 +56,9 @@ class CurriculumCallback:
             if wrapper is not None:
                 wrapper.set_precision_threshold(threshold)
                 wrapper.set_goal_range_scale(goal_scale)
+                if hasattr(wrapper, "set_disturbance_scale"):
+                    wrapper.set_disturbance_scale(float(stage.get("disturbance_scale", 1.0)))
+                    wrapper.set_disturbance_random_direction(bool(stage.get("disturbance_random_direction", False)))
 
 
 def make_callback_list(callbacks: list[Any]):

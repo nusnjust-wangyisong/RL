@@ -59,9 +59,28 @@ class HighPrecisionReachWrapper(gym.Wrapper if gym is not None else _FallbackWra
         self._prev_ee_acc: np.ndarray | None = None
         self._prev_joint_vel: np.ndarray | None = None
         self._prev_deflection = np.zeros(3)
+        self._dist_scale = 1.0
+        self._dist_random_dir = False
+        self._episode_dir: np.ndarray | None = None
         self._rng = np.random.default_rng(cfg.get("seed", None))
         self._handles = self._resolve_pybullet_handles()
         self.set_precision_threshold(self.target_threshold_m)
+
+    def set_disturbance_scale(self, scale: float) -> None:
+        """扰动感知课程：缩放扰动幅值（训练期由 0 渐增到 1）。"""
+        self._dist_scale = float(scale)
+
+    def set_disturbance_random_direction(self, flag: bool) -> None:
+        """扰动感知课程：训练期是否每个 episode 随机化扰动方向。"""
+        self._dist_random_dir = bool(flag)
+
+    def _maybe_sample_dir(self) -> None:
+        if self._dist_random_dir:
+            v = self._rng.normal(size=3)
+            n = np.linalg.norm(v)
+            self._episode_dir = v / n if n > 1e-9 else np.array([0.0, 0.0, 1.0])
+        else:
+            self._episode_dir = None
 
     def reset(self, **kwargs: Any):  # type: ignore[override]
         self.step_count = 0
@@ -71,6 +90,7 @@ class HighPrecisionReachWrapper(gym.Wrapper if gym is not None else _FallbackWra
         self._prev_ee_acc = None
         self._prev_joint_vel = None
         self._prev_deflection = np.zeros(3)
+        self._maybe_sample_dir()
         obs, info = self.env.reset(**kwargs)
         self._maybe_set_fixed_goal(obs)
         self._maybe_scale_goal(obs)
@@ -226,14 +246,17 @@ class HighPrecisionReachWrapper(gym.Wrapper if gym is not None else _FallbackWra
         if not active:
             return DisturbanceState(force=np.zeros(3), active=False)
 
-        direction = np.asarray(self.disturbance_cfg.get("direction", [0.0, 0.0, 1.0]), dtype=float)
-        norm = np.linalg.norm(direction)
-        direction = direction / norm if norm > 1e-12 else np.array([0.0, 0.0, 1.0])
+        if self._episode_dir is not None:
+            direction = self._episode_dir
+        else:
+            direction = np.asarray(self.disturbance_cfg.get("direction", [0.0, 0.0, 1.0]), dtype=float)
+            norm = np.linalg.norm(direction)
+            direction = direction / norm if norm > 1e-12 else np.array([0.0, 0.0, 1.0])
         t = self.step_count * self.dt
         base = float(self.disturbance_cfg.get("base_force_n", 0.0))
-        amplitude = float(self.disturbance_cfg.get("amplitude_n", 5.0))
+        amplitude = float(self.disturbance_cfg.get("amplitude_n", 5.0)) * self._dist_scale
         frequency = float(self.disturbance_cfg.get("frequency_hz", 20.0))
-        noise_std = float(self.disturbance_cfg.get("noise_std_n", 0.0))
+        noise_std = float(self.disturbance_cfg.get("noise_std_n", 0.0)) * self._dist_scale
         scalar = base + amplitude * math.sin(2.0 * math.pi * frequency * t)
         scalar += float(self._rng.normal(0.0, noise_std))
         return DisturbanceState(force=direction * scalar, active=True)
@@ -541,6 +564,9 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
         self._prev_ee_vel: np.ndarray | None = None
         self._prev_ee_acc: np.ndarray | None = None
         self._prev_joint_vel: np.ndarray | None = None
+        self._dist_scale = 1.0
+        self._dist_random_dir = False
+        self._episode_dir: np.ndarray | None = None
         self.goal = np.asarray(self.env_cfg.get("fixed_goal_position", [0.32, 0.0, 0.35]), dtype=float)
         self.prev_action = np.zeros(self.dof, dtype=np.float32)
 
@@ -585,6 +611,7 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
         for joint_id, q in zip(self.joint_ids, self.rest_q):
             self.p.resetJointState(self.robot_id, joint_id, float(q), targetVelocity=0.0, physicsClientId=self.client_id)
         self.goal = self._sample_goal()
+        self._maybe_sample_dir()
         self._update_target_visual()
         obs = self._get_obs()
         self._record(obs, action=None, reward=0.0, disturbance=np.zeros(3))
@@ -663,6 +690,20 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
 
     def set_goal_range_scale(self, scale: float) -> None:
         self.goal_range_scale = float(scale)
+
+    def set_disturbance_scale(self, scale: float) -> None:
+        self._dist_scale = float(scale)
+
+    def set_disturbance_random_direction(self, flag: bool) -> None:
+        self._dist_random_dir = bool(flag)
+
+    def _maybe_sample_dir(self) -> None:
+        if self._dist_random_dir:
+            v = self._rng.normal(size=3)
+            n = np.linalg.norm(v)
+            self._episode_dir = v / n if n > 1e-9 else np.array([0.0, 0.0, 1.0])
+        else:
+            self._episode_dir = None
 
     def get_episode_trace(self) -> EpisodeTrace:
         return self.trace
@@ -885,13 +926,16 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
 
     def _disturbance_force_at(self, t: float) -> np.ndarray:
         """在给定物理时刻 t（按子步推进）计算接触变力，避免控制步采样混叠。"""
-        direction = np.asarray(self.disturbance_cfg.get("direction", [0.0, 0.0, 1.0]), dtype=float)
-        direction = direction / max(np.linalg.norm(direction), 1e-12)
+        if self._episode_dir is not None:
+            direction = self._episode_dir
+        else:
+            direction = np.asarray(self.disturbance_cfg.get("direction", [0.0, 0.0, 1.0]), dtype=float)
+            direction = direction / max(np.linalg.norm(direction), 1e-12)
         scalar = float(self.disturbance_cfg.get("base_force_n", 0.0))
-        scalar += float(self.disturbance_cfg.get("amplitude_n", 5.0)) * math.sin(
+        scalar += float(self.disturbance_cfg.get("amplitude_n", 5.0)) * self._dist_scale * math.sin(
             2.0 * math.pi * float(self.disturbance_cfg.get("frequency_hz", 20.0)) * t
         )
-        scalar += float(self._rng.normal(0.0, float(self.disturbance_cfg.get("noise_std_n", 0.0))))
+        scalar += float(self._rng.normal(0.0, float(self.disturbance_cfg.get("noise_std_n", 0.0)) * self._dist_scale))
         return direction * scalar
 
     def _apply_external_force(self, force: np.ndarray) -> None:
