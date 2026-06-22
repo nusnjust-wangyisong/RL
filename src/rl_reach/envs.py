@@ -58,6 +58,7 @@ class HighPrecisionReachWrapper(gym.Wrapper if gym is not None else _FallbackWra
         self._prev_ee_vel: np.ndarray | None = None
         self._prev_ee_acc: np.ndarray | None = None
         self._prev_joint_vel: np.ndarray | None = None
+        self._prev_deflection = np.zeros(3)
         self._rng = np.random.default_rng(cfg.get("seed", None))
         self._handles = self._resolve_pybullet_handles()
         self.set_precision_threshold(self.target_threshold_m)
@@ -69,6 +70,7 @@ class HighPrecisionReachWrapper(gym.Wrapper if gym is not None else _FallbackWra
         self._prev_ee_vel = None
         self._prev_ee_acc = None
         self._prev_joint_vel = None
+        self._prev_deflection = np.zeros(3)
         obs, info = self.env.reset(**kwargs)
         self._maybe_set_fixed_goal(obs)
         self._maybe_scale_goal(obs)
@@ -82,9 +84,21 @@ class HighPrecisionReachWrapper(gym.Wrapper if gym is not None else _FallbackWra
         if self.reward_cfg.get("precision_servo", False):
             action = self._precision_servo_action(action)
 
+        # 接触柔度扰动：接触力经末端等效刚度产生柔性偏移 Δx=F/k，
+        # 因 panda-gym 为运动学/位置驱动（外力无效），按柔度模型将偏移增量注入末端指令，
+        # 使末端产生真实振荡偏移，控制器据此感知并修正。
         disturbance = self._compute_disturbance()
-        if disturbance.active:
-            self._apply_external_force(disturbance.force)
+        if disturbance.active and disturbance.force.size:
+            stiffness = float(self.disturbance_cfg.get("compliance_stiffness_n_per_m", 3300.0))
+            scale = float(self.disturbance_cfg.get("compliance_action_scale_m", 0.0388))
+            deflection = disturbance.force / max(stiffness, 1e-9)
+            delta = deflection - self._prev_deflection
+            self._prev_deflection = deflection
+            if action.size >= 3 and scale > 1e-9:
+                action = action.copy()
+                action[:3] = action[:3] + delta[:3] / scale
+        else:
+            self._prev_deflection = np.zeros(3)
 
         obs, reward, terminated, truncated, info = self.env.step(action)
         distance = self._distance(obs)
@@ -595,10 +609,13 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
             physicsClientId=self.client_id,
         )
 
+        # 接触变力扰动：按物理子步（240 Hz）重新计算并施加，避免周期力被控制步采样混叠。
         disturbance = self._compute_disturbance()
-        for _ in range(self.control_substeps):
+        base_t = (self.step_count - 1) * self.dt
+        for i in range(self.control_substeps):
             if disturbance.active:
-                self._apply_external_force(disturbance.force)
+                t_sub = base_t + (i + 1) * self.physics_dt
+                self._apply_external_force(self._disturbance_force_at(t_sub))
             self.p.stepSimulation(physicsClientId=self.client_id)
 
         self.prev_action = action.astype(np.float32)
@@ -865,6 +882,17 @@ class IRB120ReachEnv(gym.Env if gym is not None else object):
         )
         scalar += float(self._rng.normal(0.0, float(self.disturbance_cfg.get("noise_std_n", 0.0))))
         return DisturbanceState(force=direction * scalar, active=True)
+
+    def _disturbance_force_at(self, t: float) -> np.ndarray:
+        """在给定物理时刻 t（按子步推进）计算接触变力，避免控制步采样混叠。"""
+        direction = np.asarray(self.disturbance_cfg.get("direction", [0.0, 0.0, 1.0]), dtype=float)
+        direction = direction / max(np.linalg.norm(direction), 1e-12)
+        scalar = float(self.disturbance_cfg.get("base_force_n", 0.0))
+        scalar += float(self.disturbance_cfg.get("amplitude_n", 5.0)) * math.sin(
+            2.0 * math.pi * float(self.disturbance_cfg.get("frequency_hz", 20.0)) * t
+        )
+        scalar += float(self._rng.normal(0.0, float(self.disturbance_cfg.get("noise_std_n", 0.0))))
+        return direction * scalar
 
     def _apply_external_force(self, force: np.ndarray) -> None:
         self.p.applyExternalForce(

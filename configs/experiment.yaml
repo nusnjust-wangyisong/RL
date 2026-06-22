@@ -29,13 +29,16 @@ reward:
 
 disturbance:
   enabled: true
+  model: compliance
   activation_radius_m: 0.020
   direction: [0.0, 0.0, 1.0]
   base_force_n: 0.0
   amplitude_n: 5.0
-  frequency_hz: 20.0
+  frequency_hz: 5.0
   noise_std_n: 0.5
   start_after_steps: 5
+  compliance_stiffness_n_per_m: 3300.0
+  compliance_action_scale_m: 0.0388
   strengths:
     light: {amplitude_n: 2.0, noise_std_n: 0.2}
     medium: {amplitude_n: 5.0, noise_std_n: 0.5}

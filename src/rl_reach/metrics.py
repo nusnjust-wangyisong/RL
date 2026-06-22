@@ -138,10 +138,16 @@ def summarize_episode(
     miss_penalty = max(final_error - hold_threshold_m, 0.0) if np.isfinite(final_error) else 1.0
     precision_penalty = 100.0 * miss_penalty
 
+    # 目标邻域误差波动：末端稳定保持阶段（末 hold_window 步）定位误差的标准差，
+    # 隔离收敛沉降段、只刻画“稳定保持”时的抖动幅度（与 hold_5mm 口径一致、互补）。
+    hold_distances = _tail_window(distances, hold_window)
+    neighborhood_error_std = float(np.std(hold_distances)) if hold_distances.size else float("nan")
+
     summary: dict[str, Any] = {
         "final_error_m": final_error,
         "min_error_m": min_error,
         "mean_error_m": float(np.mean(distances)) if distances.size else float("nan"),
+        "neighborhood_error_std_m": neighborhood_error_std,
         "reward_sum": float(np.sum(data.get("rewards", []))),
         "ee_acc_rms": rms(np.linalg.norm(np.atleast_2d(ee_acc), axis=1)) if ee_acc.size else 0.0,
         "ee_acc_peak": peak(ee_acc),
