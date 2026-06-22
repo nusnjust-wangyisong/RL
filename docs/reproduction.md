@@ -468,3 +468,26 @@ precision_servo_ik_iterations=160
 ```
 
 注意：IRB120 的原始稳定性指标仍会保留。若某些基线几乎不动，原始加速度可能很小，但最终误差达到 10 cm 以上，不能代表接触加工稳定性。因此新增 `qualified_*` 精度约束稳定性指标：没有达到 5 mm 加工精度的策略会加入误差惩罚，避免把“未到达目标但动作很小”误判为高稳定。
+
+## 11. 接触扰动模型与稳定性扩展实验
+
+接触扰动采用“接触力—末端柔度”统一模型：接触力 `F(t)=F0+A·sin(2πf t)+ε(t)` 经末端等效刚度 `k` 产生柔性偏移 `Δx=F/k`。配置见 `configs/experiment*.yaml` 的 `disturbance` 段（`frequency_hz: 5.0`、`compliance_stiffness_n_per_m`、`compliance_action_scale_m`、`strengths`）。两点关键实现：
+
+- **避免采样混叠**：IRB120 扰动力按物理子步（240 Hz）重新计算施加；激励频率取 5 Hz（低于控制带宽），不与控制频率（IRB120 20 Hz / Panda 25 Hz）整除。
+- **Panda 注入方式**：panda-gym 为位置/运动学驱动，外力无效，故按柔度模型将偏移增量注入末端指令。
+
+稳定性指标新增 `neighborhood_error_std_m`（末段保持窗口定位误差标准差，见 `src/rl_reach/metrics.py`）。
+
+扩展实验（评估端，使用现有模型）：
+
+```bash
+# 强度曲线 / 方向扫描 / 纯评估消融：见提交历史中的实验脚本，核心是对
+# evaluate_policy 传入不同 disturbance.strengths、disturbance.direction、
+# 以及 eval.precision_servo_algorithms=[] (关闭伺服) 组合。
+# IK 变体对比：
+PYTHONNOUSERSITE=1 PYTHONPATH=src python -m rl_reach.compare_ik_variants \
+  --config configs/experiment_irb120.yaml --model-dir runs/irb120/models \
+  --episodes 15 --disturbance medium --output ik_variant_summary_medium.csv
+```
+
+探索性负结果（见报告 §10.1）：扰动感知课程训练（`configs/experiment_dac.yaml`、训练时按 `disturbance_scale` 课程加扰）与主动阻尼伺服（`eval.precision_servo_vel_damping`）均未带来显著增益，未纳入最终方法；相关配置保留以记录探索过程。
