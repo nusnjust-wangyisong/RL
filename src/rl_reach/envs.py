@@ -194,6 +194,12 @@ class HighPrecisionReachWrapper(gym.Wrapper if gym is not None else _FallbackWra
             residual_weight = min_alpha + (max_alpha - min_alpha) * smooth
             residual = np.clip(rl_action - servo, -residual_scale, residual_scale)
             servo = servo + residual_weight * residual
+        # 主动阻尼：末端速度反馈，提高闭环等效阻尼比 ζ，抑制受迫振动的动态放大
+        vel_damp = float(eval_cfg.get("precision_servo_vel_damping", 0.0))
+        if vel_damp > 0.0:
+            v_ee = self._get_ee_velocity()
+            if v_ee.size >= 3:
+                servo[:3] = np.clip(servo[:3] - vel_damp * v_ee[:3], -max_action, max_action)
         if prev_action is not None:
             servo = beta * servo + (1.0 - beta) * np.asarray(prev_action, dtype=float)
         return np.clip(servo, -1.0, 1.0)
